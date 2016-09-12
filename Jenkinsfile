@@ -1,3 +1,4 @@
+#!groovy
 def repo = "clj-icat-direct"
 def dockerUser = "discoenv"
 
