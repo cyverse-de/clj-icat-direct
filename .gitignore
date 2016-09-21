@@ -24,3 +24,5 @@
 */.DS_Store
 .DS_Store
 .idea
+build.xml
+test2junit
