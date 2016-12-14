@@ -8,4 +8,4 @@
   :plugins [[test2junit "1.2.2"]]
   :dependencies [[org.clojure/clojure "1.8.0"]
                  [korma "0.4.3"]
-                 [org.postgresql/postgresql "9.2-1002-jdbc4"]])
+                 [org.postgresql/postgresql "9.4.1212"]])
