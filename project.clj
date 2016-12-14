@@ -7,7 +7,5 @@
                         ["snapshots" :clojars]]
   :plugins [[test2junit "1.2.2"]]
   :dependencies [[org.clojure/clojure "1.8.0"]
-                 [com.mchange/c3p0 "0.9.5.1"]
-                 [korma "0.4.2"
-                  :exclusions [c3p0]]
+                 [korma "0.4.3"]
                  [org.postgresql/postgresql "9.2-1002-jdbc4"]])
