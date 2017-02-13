@@ -46,6 +46,10 @@
   [table-name query]
   (str "CREATE TEMPORARY TABLE " table-name " ON COMMIT DROP AS " query))
 
+(defn- analyze
+  [table-name]
+  (str "ANALYZE " table-name))
+
 (defn- mk-bad-cond
   [mk-bad-chars-cond mk-bad-name-cond mk-bad-path-cond parent-path bad-chars bad-names bad-paths]
   (let [conds (concat (when-not (empty? bad-chars) [(mk-bad-chars-cond parent-path bad-chars)])
@@ -315,8 +319,11 @@
   [^String user ^String zone ^String parent-path ^String info-type-cond]
   (let [group-query "SELECT group_user_id FROM groups"]
     [[(mk-temp-table "groups" (mk-groups user zone))]
+     [(analyze "groups")]
      [(mk-temp-table "objs" (mk-unique-objs-in-coll parent-path))]
+     [(analyze "objs")]
      [(mk-temp-table "file_avus" (mk-obj-avus "SELECT data_id FROM objs"))]
+     [(analyze "file_avus")]
      [(str (mk-count-objs-of-type "objs" "file_avus" group-query info-type-cond))]]))
 
 
@@ -354,8 +361,11 @@
         folders-query (mk-count-colls-in-coll parent-path group-query)
         files-query   (mk-count-objs-of-type "objs" "file_avus" group-query info-type-cond)]
     [[(mk-temp-table "groups" (mk-groups user zone))]
+     [(analyze "groups")]
      [(mk-temp-table "objs" (mk-unique-objs-in-coll parent-path))]
+     [(analyze "objs")]
      [(mk-temp-table "file_avus" (mk-obj-avus "SELECT data_id FROM objs"))]
+     [(analyze "file_avus")]
      [(str "SELECT ((" folders-query ") + (" files-query ")) AS total")]]))
 
 
@@ -391,8 +401,11 @@
   [& {:keys [user zone parent-path info-type-cond sort-column sort-direction limit offset]}]
   (let [group-query "SELECT group_user_id FROM groups"]
     [[(mk-temp-table "groups" (mk-groups user zone))]
+     [(analyze "groups")]
      [(mk-temp-table "objs" (mk-unique-objs-in-coll parent-path))]
+     [(analyze "objs")]
      [(mk-temp-table "file_avus" (mk-obj-avus "SELECT data_id FROM objs"))]
+     [(analyze "file_avus")]
      [(str (mk-files-in-folder parent-path group-query info-type-cond "objs" "file_avus") "
            ORDER BY " sort-column " " sort-direction "
            LIMIT ?
@@ -471,8 +484,11 @@
         files-query   (mk-files-in-folder parent-path group-query info-type-cond "objs"
                                           "file_avus")]
     [[(mk-temp-table "groups" (mk-groups user zone))]
+     [(analyze "groups")]
      [(mk-temp-table "objs" (mk-unique-objs-in-coll parent-path))]
+     [(analyze "objs")]
      [(mk-temp-table "file_avus" (mk-obj-avus "SELECT data_id FROM objs"))]
+     [(analyze "file_avus")]
      [(str "SELECT *
             FROM (" folders-query " UNION " files-query ") AS t
             ORDER BY type ASC, " sort-column " " sort-direction "
