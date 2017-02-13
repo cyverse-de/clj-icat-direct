@@ -1,4 +1,4 @@
-(defproject org.cyverse/clj-icat-direct "2.8.1"
+(defproject org.cyverse/clj-icat-direct "2.8.2-SNAPSHOT"
   :description "A Clojure library for accessing the iRODS ICAT database directly."
   :url "https://github.com/cyverse-de/clj-icat-direct"
   :license {:name "BSD Standard License"
