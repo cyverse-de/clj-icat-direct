@@ -180,7 +180,7 @@
   [record]
   (if (and (= "dataobject" (:type record))
            (empty? (:info_type record)))
-    (assoc record :info_type "raw")
+    (assoc record :info_type "unknown")
     record))
 
 

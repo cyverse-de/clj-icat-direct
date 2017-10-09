@@ -115,7 +115,7 @@
       (empty? file-types)
       "TRUE"
 
-      (some #(= "raw" %) file-types)
+      (some #(= "unknown" %) file-types)
       (str "f.meta_attr_value IS NULL OR f.meta_attr_value IN ('', " fmt-ft ")")
 
       :else
