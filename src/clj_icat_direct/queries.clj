@@ -565,6 +565,14 @@
                 AND c.parent_coll_name = ANY(ARRAY( SELECT coll_name FROM parent ))
                 AND c.coll_type != 'linkPoint')) AS total"
 
+   :list-files-under-folder
+   "SELECT DISTINCT c.coll_name || '/' || d.data_name AS path
+      FROM r_coll_main c
+      JOIN r_data_main d ON c.coll_id = d.coll_id
+     WHERE c.coll_name = ?
+        OR c.coll_name LIKE ? || '/%'
+  ORDER BY c.coll_name, d.data_name"
+
    :list-folders-in-folder
    "WITH user_groups AS ( SELECT g.group_user_id FROM r_user_main u
                             JOIN r_user_group g ON g.user_id = u.user_id
@@ -584,7 +592,7 @@
       FROM r_coll_main c
       JOIN r_objt_access a ON c.coll_id = a.object_id
       JOIN r_objt_metamap mm ON mm.object_id = c.coll_id
-      JOIN r_meta_main m ON m.meta_id = mm.meta_id 
+      JOIN r_meta_main m ON m.meta_id = mm.meta_id
      WHERE a.user_id IN ( SELECT group_user_id FROM user_groups )
        AND c.coll_type != 'linkPoint'
        AND c.parent_coll_name = ?
