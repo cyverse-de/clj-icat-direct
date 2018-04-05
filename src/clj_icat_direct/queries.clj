@@ -571,7 +571,7 @@
       JOIN r_data_main d ON c.coll_id = d.coll_id
      WHERE c.coll_name = ?
         OR c.coll_name LIKE ? || '/%'
-  ORDER BY c.coll_name, d.data_name"
+  ORDER BY path"
 
    :list-folders-in-folder
    "WITH user_groups AS ( SELECT g.group_user_id FROM r_user_main u
