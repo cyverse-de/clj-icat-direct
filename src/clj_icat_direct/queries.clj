@@ -566,11 +566,14 @@
                 AND c.coll_type != 'linkPoint')) AS total"
 
    :list-files-under-folder
-   "SELECT DISTINCT c.coll_name || '/' || d.data_name AS path
+   "SELECT DISTINCT c.coll_name || '/' || d.data_name AS path,
+           m.meta_attr_value AS uuid
       FROM r_coll_main c
       JOIN r_data_main d ON c.coll_id = d.coll_id
-     WHERE c.coll_name = ?
-        OR c.coll_name LIKE ? || '/%'
+      JOIN r_objt_metamap mm ON d.data_id = mm.object_id
+      JOIN r_meta_main m ON mm.meta_id = m.meta_id
+     WHERE (c.coll_name = ? OR c.coll_name LIKE ? || '/%')
+       AND m.meta_attr_name = 'ipc_UUID'
   ORDER BY path"
 
    :list-folders-in-folder

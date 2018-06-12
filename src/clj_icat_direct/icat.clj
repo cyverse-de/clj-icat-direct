@@ -159,7 +159,7 @@
   "Lists all of the files in the current folder and all descendants, without regard to file or folder permissions. Use
    of this function should be restricted to administrative endpoints."
   [folder-path]
-  (map :path (run-simple-query :list-files-under-folder folder-path folder-path)))
+  (run-simple-query :list-files-under-folder folder-path folder-path))
 
 (defn list-folders-in-folder
   "Returns a listing of the folders contained in the specified folder that the user has access to."
