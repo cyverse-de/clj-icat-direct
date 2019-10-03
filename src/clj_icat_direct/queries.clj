@@ -692,23 +692,25 @@
        AND d.data_name = ?"
 
    :folder-listing
-   "WITH user_access AS (SELECT *
-                           FROM r_objt_access
-                           WHERE user_id IN (SELECT g.group_user_id
-                                               FROM r_user_main u
-                                                 JOIN r_user_group g ON g.user_id = u.user_id
-                                               WHERE u.user_name = ? AND u.zone_name = ?)),
-         parent      AS (SELECT * FROM r_coll_main WHERE coll_name = ?)
-    SELECT DISTINCT c.coll_name || '/' || d.data_name AS full_path
-      FROM r_data_main d JOIN r_coll_main c ON d.coll_id = c.coll_id
-      WHERE c.coll_name IN (SELECT coll_name FROM parent)
-        AND d.data_id IN (SELECT object_id FROM user_access)
-    UNION
-    SELECT coll_name AS full_path
-      FROM r_coll_main
-      WHERE parent_coll_name IN (SELECT coll_name FROM parent)
-        AND coll_id IN (SELECT object_id FROM user_access)
-        AND coll_type != 'linkPoint'"
+   "WITH objs AS (SELECT coll_id AS object_id, coll_name AS full_path
+                  FROM r_coll_main
+                  WHERE parent_coll_name = ?
+                    AND coll_type != 'linkPoint'
+                  UNION
+                  SELECT d.data_id, c.coll_name || '/' || d.data_name
+                  FROM r_data_main d
+                           JOIN r_coll_main c ON d.coll_id = c.coll_id
+                  WHERE c.coll_name = ?),
+         user_access AS (SELECT DISTINCT object_id
+                         FROM r_objt_access
+                         WHERE user_id IN (SELECT g.group_user_id
+                                           FROM r_user_main u
+                                                    JOIN r_user_group g ON g.user_id = u.user_id
+                                           WHERE u.user_name = ? AND u.zone_name = ?)
+                           AND object_id IN (SELECT object_id FROM objs))
+    SELECT full_path
+    FROM objs
+    WHERE object_id IN (SELECT object_id FROM user_access)"
 
    :select-files-with-uuids
    "SELECT DISTINCT m.meta_attr_value                   uuid,

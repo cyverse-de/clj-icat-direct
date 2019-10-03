@@ -1,7 +1,6 @@
 (ns clj-icat-direct.icat
   (:use [clojure.java.io :only [file]])
-  (:require [clojure.string :as string]
-            [korma.db :as db]
+  (:require [korma.db :as db]
             [korma.core :as k]
             [clj-icat-direct.queries :as q])
   (:import [clojure.lang ISeq Keyword]))
@@ -179,7 +178,7 @@
    Returns:
      It returns a sequence of paths."
   [^String user ^String zone ^String folder-path]
-  (map :full_path (run-simple-query :folder-listing user zone folder-path)))
+  (map :full_path (run-simple-query :folder-listing folder-path folder-path user zone)))
 
 
 (defn- fmt-info-type
