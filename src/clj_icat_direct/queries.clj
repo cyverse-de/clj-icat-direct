@@ -159,12 +159,12 @@
 
 (defn ^ISeq mk-filtered-filenames-without-attr
   [uuid-prefix attr]
-  [[(mk-temp-table "attr_metaids" (mk-metaids-by-attr attr))
-    (mk-temp-table "uuid_metaids" (mk-metaids-by-value-prefix "ipc_UUID" uuid-prefix))
-    (mk-temp-table "uuid_objids" (mk-objids-for-metaids "uuid_metaids"))
-    (analyze "attr_metaids")
-    (analyze "uuid_objids")
-    (mk-filenames-without-attr "uuid_objids" "attr_metaids")]])
+  [[(mk-temp-table "attr_metaids" (mk-metaids-by-attr attr))]
+   [(mk-temp-table "uuid_metaids" (mk-metaids-by-value-prefix "ipc_UUID" uuid-prefix))]
+   [(mk-temp-table "uuid_objids" (mk-objids-for-metaids "uuid_metaids"))]
+   [(analyze "attr_metaids")]
+   [(analyze "uuid_objids")]
+   [(mk-filenames-without-attr "uuid_objids" "attr_metaids")]])
 
 (defn- mk-unique-objs-in-coll
   [coll-path]
