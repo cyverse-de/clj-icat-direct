@@ -241,6 +241,10 @@
                 :offset offset)]
     (map fmt-info-type (apply run-transaction queries))))
 
+(defn prefixed-files-without-attr
+  [uuid-prefix attr]
+  (let [queries (q/mk-filtered-filenames-without-attr uuid-prefix attr)]
+    (map :path (apply run-transaction queries))))
 
 (defn select-files-with-uuids
   "Given a set of UUIDs, it returns a list of UUID-path pairs for each UUID that corresponds to a

@@ -136,6 +136,35 @@
   "This ia a mapping of API sort direction keywords to database sort direction strings."
   {:asc "ASC" :desc "DESC"})
 
+(defn- mk-metaids-by-attr
+  [attr]
+  (str "SELECT meta_id FROM r_meta_main WHERE meta_attr_name = '" attr "'"))
+
+(defn- mk-metaids-by-value-prefix
+  [attr prefix]
+  (str (mk-metaids-by-attr attr) " AND meta_attr_value LIKE '" prefix "%'"))
+
+(defn- mk-objids-for-metaids
+  [cte]
+  (str "SELECT object_id FROM r_objt_metamap WHERE meta_id IN (SELECT meta_id FROM " cte ")"))
+
+(defn- mk-filenames-without-attr
+  [objs-cte attr-cte]
+  (str "SELECT coll_name || '/' || data_name AS path
+          FROM r_data_main JOIN r_coll_main USING (coll_id)
+         WHERE data_id IN (SELECT object_id FROM " objs-cte " k
+                            WHERE NOT EXISTS (SELECT 1 FROM r_objt_metamap
+                                               WHERE r_objt_metamap.object_id = k.object_id
+                                                 AND meta_id IN (SELECT meta_id FROM " attr-cte ")))"))
+
+(defn ^ISeq mk-filtered-filenames-without-attr
+  [uuid-prefix attr]
+  [[(mk-temp-table "attr_metaids" (mk-metaids-by-attr attr))]
+   [(mk-temp-table "uuid_metaids" (mk-metaids-by-value-prefix "ipc_UUID" uuid-prefix))]
+   [(mk-temp-table "uuid_objids" (mk-objids-for-metaids "uuid_metaids"))]
+   [(analyze "attr_metaids")]
+   [(analyze "uuid_objids")]
+   [(mk-filenames-without-attr "uuid_objids" "attr_metaids")]])
 
 (defn- mk-unique-objs-in-coll
   [coll-path]
