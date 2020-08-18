@@ -189,7 +189,7 @@
 
 
 (defn- mk-files-in-folder
-  [parent-path group-ids-query info-type-cond objs-cte avus-cte]
+  [parent-path group-ids-query info-type-cond objs-cte avus-cte include-count?]
   (str "SELECT 'dataobject'                      AS type,
                m.meta_attr_value                 AS uuid,
                '" parent-path "/' || d.data_name AS full_path,
@@ -198,8 +198,10 @@
                d.data_size                       AS data_size,
                d.create_ts                       AS create_ts,
                d.modify_ts                       AS modify_ts,
-               MAX(a.access_type_id)             AS access_type_id
-          FROM " objs-cte " AS d
+               MAX(a.access_type_id)             AS access_type_id"
+       (if include-count? ",
+               COUNT(*) OVER () AS total_count" "")
+          " FROM " objs-cte " AS d
             JOIN " avus-cte " AS m ON d.data_id = m.object_id
             JOIN r_objt_access AS a ON d.data_id = a.object_id
             LEFT JOIN (" (mk-file-types avus-cte) ") AS f
@@ -212,7 +214,7 @@
 
 
 (defn- mk-folders-in-folder
-  [parent-path group-ids-query]
+  [parent-path group-ids-query include-count?]
   (str "SELECT 'collection'                           AS type,
                m.meta_attr_value                      AS uuid,
                c.coll_name                            AS full_path,
@@ -221,8 +223,10 @@
                0                                      AS data_size,
                c.create_ts                            AS create_ts,
                c.modify_ts                            AS modify_ts,
-               MAX(a.access_type_id)                  AS access_type_id
-          FROM r_coll_main AS c
+               MAX(a.access_type_id)                  AS access_type_id"
+       (if include-count? ",
+               COUNT(*) OVER () AS total_count" "")
+         " FROM r_coll_main AS c
             JOIN r_objt_metamap AS om ON om.object_id = c.coll_id
             JOIN r_meta_main AS m ON m.meta_id = om.meta_id
             JOIN r_objt_access AS a ON c.coll_id = a.object_id
@@ -435,7 +439,7 @@
      [(analyze "objs")]
      [(mk-temp-table "file_avus" (mk-obj-avus "SELECT data_id FROM objs"))]
      [(analyze "file_avus")]
-     [(str (mk-files-in-folder parent-path group-query info-type-cond "objs" "file_avus") "
+     [(str (mk-files-in-folder parent-path group-query info-type-cond "objs" "file_avus" true) "
            ORDER BY " sort-column " " sort-direction "
            LIMIT ?
            OFFSET ?") limit offset]]))
@@ -470,7 +474,7 @@
       access_type_id - the ICAT DB Id indicating the user's level of access to the folder"
   [& {:keys [user zone parent-path sort-column sort-direction limit offset]}]
   [[(str "WITH groups AS (" (mk-groups user zone) ")
-       " (mk-folders-in-folder parent-path "SELECT group_user_id FROM groups") "
+       " (mk-folders-in-folder parent-path "SELECT group_user_id FROM groups" true) "
         ORDER BY " sort-column " " sort-direction "
         LIMIT ?
         OFFSET ?") limit offset]])
@@ -509,16 +513,16 @@
       access_type_id - the ICAT DB Id indicating the user's level of access to the file or folder"
   [& {:keys [user zone parent-path info-type-cond sort-column sort-direction limit offset]}]
   (let [group-query   "SELECT group_user_id FROM groups"
-        folders-query (mk-folders-in-folder parent-path group-query)
+        folders-query (mk-folders-in-folder parent-path group-query false)
         files-query   (mk-files-in-folder parent-path group-query info-type-cond "objs"
-                                          "file_avus")]
+                                          "file_avus" false)]
     [[(mk-temp-table "groups" (mk-groups user zone))]
      [(analyze "groups")]
      [(mk-temp-table "objs" (mk-unique-objs-in-coll parent-path))]
      [(analyze "objs")]
      [(mk-temp-table "file_avus" (mk-obj-avus "SELECT data_id FROM objs"))]
      [(analyze "file_avus")]
-     [(str "SELECT *
+     [(str "SELECT *, COUNT(*) OVER () AS total_count
             FROM (" folders-query " UNION " files-query ") AS t
             ORDER BY type ASC, " sort-column " " sort-direction "
             LIMIT ?
