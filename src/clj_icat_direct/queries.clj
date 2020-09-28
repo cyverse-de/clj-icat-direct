@@ -187,6 +187,21 @@
   [avus-cte]
   (str "SELECT * FROM " avus-cte " WHERE meta_attr_name = 'ipc-filetype'"))
 
+(defn ^ISeq mk-get-item
+  [dirname basename group-ids-query]
+  [(str "WITH "
+     "objs AS ("
+       "SELECT c.coll_id AS object_id, 'collection' AS type, c.coll_name AS full_path, regexp_replace(c.coll_name, '.*/', '') AS base_name, 0 as data_size, c.create_ts, c.modify_ts FROM r_coll_main c WHERE coll_name = ? || '/' || ? "
+       "UNION "
+       "SELECT d.data_id as object_id, 'dataobject' as type, c.coll_name || '/' || d.data_name AS full_path, d.data_name AS base_name, d.data_size, d.create_ts, d.modify_ts FROM r_data_main d JOIN r_coll_main c on d.coll_id = c.coll_id WHERE coll_name = ? AND data_name = ?"
+     "), "
+     "meta AS ("
+       "SELECT object_id, max(CASE WHEN meta_attr_name = 'ipc_UUID' THEN meta_attr_value ELSE NULL END) AS uuid, max(CASE WHEN meta_attr_name = 'ipc-filetype' THEN meta_attr_value ELSE NULL END) as info_type FROM r_objt_metamap mm JOIN r_meta_main m USING (meta_id) WHERE object_id IN (SELECT object_id FROM objs) GROUP BY object_id"
+     ") "
+     "SELECT objs.object_id, objs.type, meta.uuid, objs.full_path, objs.base_name, meta.info_type, objs.data_size, objs.create_ts, objs.modify_ts, max(a.access_type_id) AS access_type_id FROM objs JOIN meta USING (object_id) JOIN r_objt_access a USING (object_id) WHERE a.user_id IN ("
+       group-ids-query
+     ") "
+     "GROUP BY object_id, type, uuid, full_path, base_name, info_type, data_size, objs.create_ts, objs.modify_ts") dirname basename dirname basename])
 
 (defn- mk-files-in-folder
   [parent-path group-ids-query info-type-cond objs-cte avus-cte include-count?]
@@ -238,13 +253,16 @@
                    c.modify_ts"))
 
 
-(defn- mk-groups
-  [user zone]
-  (str "SELECT *
-          FROM r_user_group
-          WHERE user_id IN (SELECT user_id
-                              FROM r_user_main
-                              WHERE user_name = '" user "' AND zone_name = '" zone "')"))
+(defn mk-groups
+  [user zone & placeholder-vec?]
+  (let [base "SELECT *
+               FROM r_user_group
+               WHERE user_id IN (SELECT user_id
+                                   FROM r_user_main
+                                   WHERE user_name = %s AND zone_name = %s)"]
+    (if placeholder-vec?
+      [(format base "?" "?") user zone]
+      (format base (str "'" user "'") (str "'" zone "'")))))
 
 
 (defn- mk-count-colls-in-coll
@@ -431,9 +449,9 @@
       create_ts      - the iRODS timestamp string for when the file was created
       modify_ts      - the iRODS timestamp string for when the file was last modified
       access_type_id - the ICAT DB Id indicating the user's level of access to the file"
-  [& {:keys [user zone parent-path info-type-cond sort-column sort-direction limit offset]}]
+  [& {:keys [user zone parent-path info-type-cond sort-column sort-direction limit offset groups-table-query]}]
   (let [group-query "SELECT group_user_id FROM groups"]
-    [[(mk-temp-table "groups" (mk-groups user zone))]
+    [[(mk-temp-table "groups" (or groups-table-query (mk-groups user zone)))]
      [(analyze "groups")]
      [(mk-temp-table "objs" (mk-unique-objs-in-coll parent-path))]
      [(analyze "objs")]
@@ -472,8 +490,8 @@
       create_ts      - the iRODS timestamp string for when the folder was created
       modify_ts      - the iRODS timestamp string for when the folder was last modified
       access_type_id - the ICAT DB Id indicating the user's level of access to the folder"
-  [& {:keys [user zone parent-path sort-column sort-direction limit offset]}]
-  [[(str "WITH groups AS (" (mk-groups user zone) ")
+  [& {:keys [user zone parent-path sort-column sort-direction limit offset groups-table-query]}]
+  [[(str "WITH groups AS (" (or groups-table-query (mk-groups user zone)) ")
        " (mk-folders-in-folder parent-path "SELECT group_user_id FROM groups" true) "
         ORDER BY " sort-column " " sort-direction "
         LIMIT ?
@@ -511,18 +529,17 @@
       create_ts      - the iRODS timestamp string for when the file or folder was created
       modify_ts      - the iRODS timestamp string for when the file or folder was last modified
       access_type_id - the ICAT DB Id indicating the user's level of access to the file or folder"
-  [& {:keys [user zone parent-path info-type-cond sort-column sort-direction limit offset]}]
+  [& {:keys [user zone parent-path info-type-cond sort-column sort-direction limit offset groups-table-query]}]
   (let [group-query   "SELECT group_user_id FROM groups"
         folders-query (mk-folders-in-folder parent-path group-query false)
         files-query   (mk-files-in-folder parent-path group-query info-type-cond "objs"
                                           "file_avus" false)]
-    [[(mk-temp-table "groups" (mk-groups user zone))]
-     [(analyze "groups")]
-     [(mk-temp-table "objs" (mk-unique-objs-in-coll parent-path))]
+    [[(mk-temp-table "objs" (mk-unique-objs-in-coll parent-path))]
      [(analyze "objs")]
      [(mk-temp-table "file_avus" (mk-obj-avus "SELECT data_id FROM objs"))]
      [(analyze "file_avus")]
-     [(str "SELECT *, COUNT(*) OVER () AS total_count
+     [(str "WITH groups AS (" (or groups-table-query (mk-groups user zone)) ") "
+           "SELECT *, COUNT(*) OVER () AS total_count
             FROM (" folders-query " UNION " files-query ") AS t
             ORDER BY type ASC, " sort-column " " sort-direction "
             LIMIT ?
