@@ -2,9 +2,9 @@
   (:use [clojure.java.io :only [file]])
   (:require [korma.db :as db]
             [korma.core :as k]
+            [clojure.string :as string]
             [clj-icat-direct.queries :as q])
   (:import [clojure.lang ISeq Keyword]))
-
 
 (defn icat-db-spec
   "Creates a Korma db spec for the ICAT."
@@ -37,18 +37,37 @@
   [query & args]
   (k/exec-raw icat [query args] :results))
 
+(defmacro with-icat-transaction
+  [& body]
+  `(if (map? icat)
+    (db/with-db icat
+      (db/transaction
+        (do ~@body)))
+    (do ~@body)))
+
+(defn- run-stuff
+  [& queries]
+  (let [side-effects (drop-last 1 queries)
+        final-query-and-args (last queries)]
+    (doseq [q side-effects]
+      ; uses exec-raw directly here to exclude :results so this can run DDL statements
+      (k/exec-raw icat q))
+    (apply run-query-string final-query-and-args)))
+
 (defn- run-transaction
   "Runs the set of passed-in query strings+args in a transaction, returning
   what the last one returns. This is intended to be used to create temporary
   tables to circumvent the fact postgresql is bad at doing estimates on CTEs."
   [& queries]
-  (db/transaction
-    (let [side-effects (drop-last 1 queries)
-          final-query-and-args (last queries)]
-      (doseq [q side-effects]
-        ; uses exec-raw directly here to exclude :results so this can run DDL statements
-        (k/exec-raw icat q))
-      (apply run-query-string final-query-and-args))))
+  (with-icat-transaction
+    (apply run-stuff queries)))
+
+(defn user-group-ids
+  "Get user group IDs, including the user's ID"
+  [user zone]
+  (->> (q/mk-groups user zone true)
+       (apply run-query-string)
+       (map :group_user_id)))
 
 (defn number-of-files-in-folder
   "Returns the number of files in a folder that the user has access to."
@@ -202,6 +221,17 @@
     direction
     (throw (Exception. (str "invalid sort direction" direction-key)))))
 
+(defn- get-item*
+  [dirname basename group-ids-query]
+  (fmt-info-type (first (apply run-query-string (q/mk-get-item dirname basename group-ids-query)))))
+
+(defn get-item
+  ([dirname basename group-ids]
+   (let [group-ids-query (apply str "VALUES " (string/join ", " (map #(str "(" % ")") group-ids)))]
+     (get-item* dirname basename group-ids-query)))
+  ([dirname basename user zone]
+   (let [group-ids-query (str "SELECT group_user_id FROM (" (q/mk-groups user zone) ") g")]
+     (get-item* dirname basename group-ids-query))))
 
 (defn ^ISeq paged-folder-listing
   "Returns a page from a folder listing.
@@ -224,8 +254,9 @@
 
    Throws:
      It throws an exception if a validation fails."
-  [& {:keys [user zone folder-path entity-type sort-column sort-direction limit offset info-types]}]
-  (let [query-ctor (case entity-type
+  [& {:keys [user zone folder-path entity-type sort-column sort-direction limit offset info-types transaction? user-group-ids]}]
+  (let [groups-table-query (when user-group-ids (apply str "SELECT column1 AS group_user_id FROM (VALUES " (string/join ", " (map #(str "(" % ")") user-group-ids)) ") v"))
+        query-ctor (case entity-type
                      :any    q/mk-paged-folder
                      :file   q/mk-paged-files-in-folder
                      :folder q/mk-paged-folders-in-folder
@@ -233,13 +264,14 @@
         queries (query-ctor
                 :user           user
                 :zone           zone
+                :groups-table-query groups-table-query
                 :parent-path    folder-path
                 :info-type-cond (q/mk-file-type-cond info-types)
                 :sort-column    (resolve-sort-column sort-column)
                 :sort-direction (resolve-sort-direction sort-direction)
                 :limit limit
                 :offset offset)]
-    (map fmt-info-type (apply run-transaction queries))))
+    (map fmt-info-type (apply (if transaction? run-transaction run-stuff) queries))))
 
 (defn prefixed-files-without-attr
   [uuid-prefix attr]

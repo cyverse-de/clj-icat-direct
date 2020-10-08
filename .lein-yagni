@@ -13,3 +13,6 @@ clj-icat-direct.icat/select-folders-with-uuids
 clj-icat-direct.icat/paged-uuid-listing
 clj-icat-direct.icat/number-of-uuids-in-folder
 clj-icat-direct.icat/paged-folder-listing
+clj-icat-direct.icat/user-group-ids
+clj-icat-direct.icat/prefixed-files-without-attr
+clj-icat-direct.icat/list-files-under-folder
