@@ -451,13 +451,12 @@
       access_type_id - the ICAT DB Id indicating the user's level of access to the file"
   [& {:keys [user zone parent-path info-type-cond sort-column sort-direction limit offset groups-table-query]}]
   (let [group-query "SELECT group_user_id FROM groups"]
-    [[(mk-temp-table "groups" (or groups-table-query (mk-groups user zone)))]
-     [(analyze "groups")]
-     [(mk-temp-table "objs" (mk-unique-objs-in-coll parent-path))]
+    [[(mk-temp-table "objs" (mk-unique-objs-in-coll parent-path))]
      [(analyze "objs")]
      [(mk-temp-table "file_avus" (mk-obj-avus "SELECT data_id FROM objs"))]
      [(analyze "file_avus")]
-     [(str (mk-files-in-folder parent-path group-query info-type-cond "objs" "file_avus" true) "
+     [(str "WITH groups AS (" (or groups-table-query (mk-groups user zone)) ") "
+           (mk-files-in-folder parent-path group-query info-type-cond "objs" "file_avus" true) "
            ORDER BY " sort-column " " sort-direction "
            LIMIT ?
            OFFSET ?") limit offset]]))
