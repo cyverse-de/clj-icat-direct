@@ -253,6 +253,10 @@
                    c.modify_ts"))
 
 
+(defn mk-user
+  [user zone]
+  [(str "SELECT user_id, user_name, user_type_name, zone_name, user_info, r_comment, create_ts, modify_ts FROM r_user_main WHERE user_name = ? AND zone_name = ?") user zone])
+
 (defn mk-groups
   [user zone & placeholder-vec?]
   (let [base "SELECT *
