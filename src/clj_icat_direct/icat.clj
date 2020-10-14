@@ -62,6 +62,13 @@
   (with-icat-transaction
     (apply run-stuff queries)))
 
+(defn user
+  "Get a representation of a user with their ID, username, type name, zone, 'info', 'comment', and create/modify timestamps."
+  [username zone]
+  (->> (q/mk-user username zone)
+       (apply run-query-string)
+       first))
+
 (defn user-group-ids
   "Get user group IDs, including the user's ID"
   [user zone]
