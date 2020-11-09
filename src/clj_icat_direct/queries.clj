@@ -273,7 +273,7 @@
   ["WITH objid AS (SELECT object_id FROM r_objt_metamap
                      JOIN r_meta_main USING (meta_id)
                     WHERE meta_attr_name = 'ipc_UUID'
-                      AND meta_attr_value = ?)
+                      AND meta_attr_value = ?::text)
     SELECT coll_name AS path FROM r_coll_main WHERE coll_id IN (select object_id FROM objid)
      UNION ALL
     SELECT coll_name || '/' || data_name AS path FROM r_data_main JOIN r_coll_main USING (coll_id) WHERE data_id IN (select object_id from objid) LIMIT 1" uuid])
