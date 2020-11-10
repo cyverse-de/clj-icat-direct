@@ -76,6 +76,13 @@
        (apply run-query-string)
        (map :group_user_id)))
 
+(defn path-for-uuid
+  [uuid]
+  (->> (q/mk-path-for-uuid uuid)
+       (apply run-query-string)
+       (first)
+       :path))
+
 (defn number-of-files-in-folder
   "Returns the number of files in a folder that the user has access to."
   [user zone folder-path]
