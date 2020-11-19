@@ -34,7 +34,7 @@ node('docker') {
             lock("lein-deploy-${env.JOB_NAME}") {
               milestone 101
               withCredentials([[$class: 'UsernamePasswordMultiBinding', credentialsId: 'jenkins-clojars-credentials', usernameVariable: 'LEIN_USERNAME', passwordVariable: 'LEIN_PASSWORD']]) {
-                  sh "docker run --name ${dockerDeployer} -e LEIN_USERNAME -e LEIN_PASSWORD --rm ${dockerRepo} lein deploy"
+                  sh "docker run --name ${dockerDeployer} -e LEIN_USERNAME -e LEIN_PASSWORD --rm ${dockerRepo} lein deploy clojars"
               }
             }
         } finally {
