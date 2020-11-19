@@ -16,3 +16,5 @@ clj-icat-direct.icat/paged-folder-listing
 clj-icat-direct.icat/user-group-ids
 clj-icat-direct.icat/prefixed-files-without-attr
 clj-icat-direct.icat/list-files-under-folder
+clj-icat-direct.icat/get-item
+clj-icat-direct.icat/path-for-uuid
