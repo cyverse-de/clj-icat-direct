@@ -1,4 +1,6 @@
 FROM clojure
+RUN apt-get update && apt-get install -y git
+
 COPY ./docker/profiles.clj /root/.lein/profiles.clj
 WORKDIR /usr/src/app
 
