@@ -5,6 +5,7 @@
 /lib
 /classes
 /native
+/.eastwood
 /.lein-failures
 /checkouts
 .lein-deps-sum
