@@ -247,6 +247,13 @@
    (let [group-ids-query (str "SELECT group_user_id FROM (" (q/mk-groups user zone) ") g")]
      (get-item* dirname basename group-ids-query))))
 
+(defn- build-groups-table-query [user-group-ids]
+  (when user-group-ids
+    (apply str
+           "SELECT column1 AS group_user_id FROM (VALUES "
+           (string/join ", " (map #(str "(" % ")") user-group-ids))
+           ") v")))
+
 (defn ^ISeq paged-folder-listing
   "Returns a page from a folder listing.
 
@@ -268,8 +275,10 @@
 
    Throws:
      It throws an exception if a validation fails."
-  [& {:keys [user zone folder-path entity-type sort-column sort-direction limit offset info-types transaction? user-group-ids]}]
-  (let [groups-table-query (when user-group-ids (apply str "SELECT column1 AS group_user_id FROM (VALUES " (string/join ", " (map #(str "(" % ")") user-group-ids)) ") v"))
+  [& {:keys [user zone folder-path entity-type sort-column sort-direction limit offset info-types transaction?
+             user-group-ids]
+      :or {transaction? true}}]
+  (let [groups-table-query (build-groups-table-query user-group-ids)
         query-ctor (case entity-type
                      :any    q/mk-paged-folder
                      :file   q/mk-paged-files-in-folder
