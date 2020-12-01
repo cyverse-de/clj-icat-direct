@@ -196,7 +196,7 @@
        "SELECT d.data_id as object_id, 'dataobject' as type, c.coll_name || '/' || d.data_name AS full_path, d.data_name AS base_name, d.data_size, d.create_ts, d.modify_ts FROM r_data_main d JOIN r_coll_main c on d.coll_id = c.coll_id WHERE coll_name = ? AND data_name = ?"
      "), "
      "meta AS ("
-       "SELECT object_id, max(CASE WHEN meta_attr_name = 'ipc_UUID' THEN meta_attr_value ELSE NULL END) AS uuid, max(CASE WHEN meta_attr_name = 'ipc-filetype' THEN meta_attr_value ELSE NULL END) as info_type FROM r_objt_metamap mm JOIN r_meta_main m USING (meta_id) WHERE object_id IN (SELECT object_id FROM objs) GROUP BY object_id"
+       "SELECT object_id, max(CASE WHEN meta_attr_name = 'ipc_UUID' THEN meta_attr_value ELSE NULL END) AS uuid, max(CASE WHEN meta_attr_name = 'ipc-filetype' THEN meta_attr_value ELSE NULL END) as info_type FROM objs LEFT JOIN r_objt_metamap mm USING (object_id) LEFT JOIN r_meta_main m USING (meta_id) GROUP BY object_id"
      ") "
      "SELECT objs.object_id, objs.type, meta.uuid, objs.full_path, objs.base_name, meta.info_type, objs.data_size, objs.create_ts, objs.modify_ts, max(a.access_type_id) AS access_type_id FROM objs JOIN meta USING (object_id) JOIN r_objt_access a USING (object_id) WHERE a.user_id IN ("
        group-ids-query
