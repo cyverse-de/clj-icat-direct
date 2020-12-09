@@ -241,8 +241,10 @@
 
 (defn get-item
   ([dirname basename group-ids]
-   (let [group-ids-query (apply str "VALUES " (string/join ", " (map #(str "(" % ")") group-ids)))]
-     (get-item* dirname basename group-ids-query)))
+   (if (seq group-ids)
+     (let [group-ids-query (apply str "VALUES " (string/join ", " (map #(str "(" % ")") group-ids)))]
+       (get-item* dirname basename group-ids-query))
+     "")) ;; return an empty string when no group IDs are passed in
   ([dirname basename user zone]
    (let [group-ids-query (str "SELECT group_user_id FROM (" (q/mk-groups user zone) ") g")]
      (get-item* dirname basename group-ids-query))))
