@@ -1,5 +1,8 @@
 (ns clj-icat-direct.queries
-  (:require [clojure.string :as string])
+  (:require [clj-icat-direct.util :refer [sql-array]]
+            [clojure.string :as string]
+            [honeysql.core :as sql]
+            [honeysql.helpers :as h])
   (:import  [clojure.lang IPersistentMap ISeq]))
 
 
@@ -268,15 +271,28 @@
       [(format base "?" "?") user zone]
       (format base (str "'" user "'") (str "'" zone "'")))))
 
+(defn mk-paths-for-uuids
+  [uuids]
+  (sql/format
+   {:with      [[:objid (-> (h/select :object_id :meta_attr_value)
+                            (h/from :r_objt_metamap)
+                            (h/join :r_meta_main [:using :meta_id])
+                            (h/where [:= :meta_attr_name "ipc_UUID"]
+                                     [:= :meta_attr_value (sql/call :any (sql-array "varchar" uuids))]))]]
+    :union-all [(-> (h/select [:meta_attr_value :uuid]
+                              [:coll_name :path])
+                    (h/from :r_coll_main)
+                    (h/join :objid [:= :r_coll_main.coll_id :objid.object_id]))
+                (-> (h/select [:meta_attr_value :uuid]
+                              [(sql/raw "coll_name || '/' || data_name") :path])
+                    (h/modifiers :distinct)
+                    (h/from :r_data_main)
+                    (h/join :r_coll_main [:using :coll_id]
+                            :objid [:= :r_data_main.data_id :objid.object_id]))]}))
+
 (defn mk-path-for-uuid
   [uuid]
-  ["WITH objid AS (SELECT object_id FROM r_objt_metamap
-                     JOIN r_meta_main USING (meta_id)
-                    WHERE meta_attr_name = 'ipc_UUID'
-                      AND meta_attr_value = ?::text)
-    SELECT coll_name AS path FROM r_coll_main WHERE coll_id IN (select object_id FROM objid)
-     UNION ALL
-    SELECT coll_name || '/' || data_name AS path FROM r_data_main JOIN r_coll_main USING (coll_id) WHERE data_id IN (select object_id from objid) LIMIT 1" uuid])
+  (mk-paths-for-uuids [uuid]))
 
 (defn- mk-count-colls-in-coll
   [parent-path group-ids-query & {:keys [cond] :or {cond "TRUE"}}]

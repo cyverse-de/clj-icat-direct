@@ -83,6 +83,13 @@
        (first)
        :path))
 
+(defn paths-for-uuids
+  [uuids]
+  (->> (q/mk-paths-for-uuids uuids)
+       (apply run-query-string)
+       (map (juxt :uuid :path))
+       (into {})))
+
 (defn number-of-files-in-folder
   "Returns the number of files in a folder that the user has access to."
   [user zone folder-path]
