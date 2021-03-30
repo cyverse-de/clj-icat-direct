@@ -8,6 +8,7 @@
   :plugins [[jonase/eastwood "0.3.11"]
             [test2junit "1.2.2"]]
   :dependencies [[org.clojure/clojure "1.8.0"]
+                 [honeysql "1.0.444"]
                  [korma "0.4.3"]
                  [org.postgresql/postgresql "42.2.18"]]
   :eastwood {:exclude-linters [:def-in-def :unlimited-use]})
