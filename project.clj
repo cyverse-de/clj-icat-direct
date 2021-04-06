@@ -7,7 +7,8 @@
                         ["snapshots" :clojars]]
   :plugins [[jonase/eastwood "0.3.11"]
             [test2junit "1.2.2"]]
-  :profiles {:repl {:source-paths ["repl"]}}
+  :profiles {:repl {:dependencies [[cheshire "5.10.0"]]
+                    :source-paths ["repl"]}}
   :dependencies [[org.clojure/clojure "1.8.0"]
                  [honeysql "1.0.444"]
                  [korma "0.4.3"]
