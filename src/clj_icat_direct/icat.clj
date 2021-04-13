@@ -244,7 +244,10 @@
 
 (defn- get-item*
   [dirname basename group-ids-query]
-  (fmt-info-type (first (apply run-query-string (q/mk-get-item dirname basename group-ids-query)))))
+  (->> (q/mk-get-item dirname basename group-ids-query)
+       (apply run-query-string)
+       first
+       fmt-info-type))
 
 (defn get-item
   ([dirname basename group-ids]
