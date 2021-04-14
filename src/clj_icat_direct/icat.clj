@@ -90,6 +90,11 @@
        (map (juxt :uuid :path))
        (into {})))
 
+(defn list-perms-for-item
+  [path]
+  (->> (q/mk-perms-for-item path)
+       (apply run-query-string)))
+
 (defn number-of-files-in-folder
   "Returns the number of files in a folder that the user has access to."
   [user zone folder-path]
@@ -219,7 +224,6 @@
      It returns a sequence of paths."
   [^String user ^String zone ^String folder-path]
   (map :full_path (run-simple-query :folder-listing folder-path folder-path user zone)))
-
 
 (defn- fmt-info-type
   [record]

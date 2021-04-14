@@ -1,5 +1,6 @@
 (ns clj-icat-direct.queries
   (:require [clj-icat-direct.util :refer [sql-array]]
+            [clojure.java.io :refer [file]]
             [clojure.string :as string]
             [honeysql.core :as sql]
             [honeysql.helpers :as h])
@@ -295,6 +296,23 @@
 (defn mk-path-for-uuid
   [uuid]
   (mk-paths-for-uuids [uuid]))
+
+(defn mk-perms-for-item
+  [path]
+  (let [[dirname basename] ((juxt #(.getParent %) #(.getName %)) (file path))]
+    (sql/format
+     (-> {:with [[:object-lookup {:union-all [(-> (h/select [:coll_id :object_id])
+                                                  (h/from :r_coll_main)
+                                                  (h/where [:= :coll_name path]))
+                                              (-> (h/select [:d.data_id :object_id])
+                                                  (h/from [:r_data_main :d])
+                                                  (h/join [:r_coll_main :c] [:using :coll_id])
+                                                  (h/where [:= :c.coll_name dirname]
+                                                           [:= :d.data_name basename]))]}]]}
+         (h/select :p.object_id [:u.user_name :user] :p.access_type_id)
+         (h/from [:r_objt_access :p])
+         (h/join [:r_user_main :u] [:using :user_id]
+                 [:object-lookup :o] [:using :object_id])))))
 
 (defn- mk-count-colls-in-coll
   [parent-path group-ids-query & {:keys [cond] :or {cond "TRUE"}}]
