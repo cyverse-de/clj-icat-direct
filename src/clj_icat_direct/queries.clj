@@ -301,14 +301,14 @@
   [path]
   (let [[dirname basename] ((juxt #(.getParent %) #(.getName %)) (file path))]
     (sql/format
-     (-> {:with [[:object-lookup {:union-all [(-> (h/select [:coll_id :object_id])
-                                                  (h/from :r_coll_main)
-                                                  (h/where [:= :coll_name path]))
-                                              (-> (h/select [:d.data_id :object_id])
-                                                  (h/from [:r_data_main :d])
-                                                  (h/join [:r_coll_main :c] [:using :coll_id])
-                                                  (h/where [:= :c.coll_name dirname]
-                                                           [:= :d.data_name basename]))]}]]}
+     (-> {:with [[:object-lookup {:union [(-> (h/select [:coll_id :object_id])
+                                              (h/from :r_coll_main)
+                                              (h/where [:= :coll_name path]))
+                                          (-> (h/select [:d.data_id :object_id])
+                                              (h/from [:r_data_main :d])
+                                              (h/join [:r_coll_main :c] [:using :coll_id])
+                                              (h/where [:= :c.coll_name dirname]
+                                                       [:= :d.data_name basename]))]}]]}
          (h/select :p.object_id [:u.user_name :user] :p.access_type_id)
          (h/from [:r_objt_access :p])
          (h/join [:r_user_main :u] [:using :user_id]
