@@ -1,5 +1,6 @@
 (ns clj-icat-direct.queries
   (:require [clj-icat-direct.util :refer [sql-array]]
+            [clojure.java.io :refer [file]]
             [clojure.string :as string]
             [honeysql.core :as sql]
             [honeysql.helpers :as h])
@@ -194,17 +195,17 @@
   [dirname basename group-ids-query]
   [(str "WITH "
      "objs AS ("
-       "SELECT c.coll_id AS object_id, 'collection' AS type, c.coll_name AS full_path, regexp_replace(c.coll_name, '.*/', '') AS base_name, 0 as data_size, c.create_ts, c.modify_ts FROM r_coll_main c WHERE coll_name = ? || '/' || ? "
+       "SELECT c.coll_id AS object_id, 'collection' AS type, c.coll_name AS full_path, regexp_replace(c.coll_name, '.*/', '') AS base_name, 0 as data_size, c.create_ts, c.modify_ts, NULL AS data_checksum FROM r_coll_main c WHERE coll_name = ? || '/' || ? "
        "UNION "
-       "SELECT d.data_id as object_id, 'dataobject' as type, c.coll_name || '/' || d.data_name AS full_path, d.data_name AS base_name, d.data_size, d.create_ts, d.modify_ts FROM r_data_main d JOIN r_coll_main c on d.coll_id = c.coll_id WHERE coll_name = ? AND data_name = ?"
+       "SELECT d.data_id as object_id, 'dataobject' as type, c.coll_name || '/' || d.data_name AS full_path, d.data_name AS base_name, d.data_size, d.create_ts, d.modify_ts, d.data_checksum FROM r_data_main d JOIN r_coll_main c on d.coll_id = c.coll_id WHERE coll_name = ? AND data_name = ?"
      "), "
      "meta AS ("
        "SELECT object_id, max(CASE WHEN meta_attr_name = 'ipc_UUID' THEN meta_attr_value ELSE NULL END) AS uuid, max(CASE WHEN meta_attr_name = 'ipc-filetype' THEN meta_attr_value ELSE NULL END) as info_type FROM objs LEFT JOIN r_objt_metamap mm USING (object_id) LEFT JOIN r_meta_main m USING (meta_id) GROUP BY object_id"
      ") "
-     "SELECT objs.object_id, objs.type, meta.uuid, objs.full_path, objs.base_name, meta.info_type, objs.data_size, objs.create_ts, objs.modify_ts, max(a.access_type_id) AS access_type_id FROM objs JOIN meta USING (object_id) JOIN r_objt_access a USING (object_id) WHERE a.user_id IN ("
+     "SELECT objs.object_id, objs.type, meta.uuid, objs.full_path, objs.base_name, meta.info_type, objs.data_size, objs.create_ts, objs.modify_ts, max(a.access_type_id) AS access_type_id, objs.data_checksum FROM objs JOIN meta USING (object_id) JOIN r_objt_access a USING (object_id) WHERE a.user_id IN ("
        group-ids-query
      ") "
-     "GROUP BY object_id, type, uuid, full_path, base_name, info_type, data_size, objs.create_ts, objs.modify_ts") dirname basename dirname basename])
+     "GROUP BY object_id, type, uuid, full_path, base_name, info_type, data_size, objs.create_ts, objs.modify_ts, objs.data_checksum") dirname basename dirname basename])
 
 (defn- mk-files-in-folder
   [parent-path group-ids-query info-type-cond objs-cte avus-cte include-count?]
@@ -216,7 +217,8 @@
                d.data_size                       AS data_size,
                d.create_ts                       AS create_ts,
                d.modify_ts                       AS modify_ts,
-               MAX(a.access_type_id)             AS access_type_id"
+               MAX(a.access_type_id)             AS access_type_id,
+               d.data_checksum                   AS data_checksum"
        (if include-count? ",
                COUNT(*) OVER () AS total_count" "")
           " FROM " objs-cte " AS d
@@ -228,7 +230,7 @@
             AND m.meta_attr_name = 'ipc_UUID'
             AND (" info-type-cond ")
           GROUP BY type, uuid, full_path, base_name, info_type, data_size, d.create_ts,
-                   d.modify_ts"))
+                   d.modify_ts, data_checksum"))
 
 
 (defn- mk-folders-in-folder
@@ -241,7 +243,8 @@
                0                                      AS data_size,
                c.create_ts                            AS create_ts,
                c.modify_ts                            AS modify_ts,
-               MAX(a.access_type_id)                  AS access_type_id"
+               MAX(a.access_type_id)                  AS access_type_id,
+               NULL                                   AS data_checksum"
        (if include-count? ",
                COUNT(*) OVER () AS total_count" "")
          " FROM r_coll_main AS c
@@ -253,7 +256,7 @@
             AND m.meta_attr_name = 'ipc_UUID'
             AND a.user_id IN (" group-ids-query ")
           GROUP BY type, uuid, full_path, base_name, info_type, data_size, c.create_ts,
-                   c.modify_ts"))
+                   c.modify_ts, data_checksum"))
 
 
 (defn mk-user
@@ -293,6 +296,64 @@
 (defn mk-path-for-uuid
   [uuid]
   (mk-paths-for-uuids [uuid]))
+
+(defn- object-lookup-cte
+  "Creates a Common Table Expression (CTE) that can be used to find the collection or data object with
+  a given path. The fields returned by the CTE are parameterized so that this function can be used in
+  multiple contexts. By default, only the object ID (that is, the collection ID if the path happens
+  to correspond to a collection or the data object ID if the path happens to correspond to a data
+  object) is returned.
+
+  In order to use custom fields, it's necessary to know a little bit about how the CTE is constructed.
+  The CTE is a union of two queries. The first query scans `r_coll_main` for collections with the given
+  path. The second query scans `r_data_main` for data objects with the basename of the given path in
+  the `data_name` column that happen to be in a collection whose name matches the dirname of the path.
+  The query looking for a matching collection does not do any joins, so it doesn't use any table aliases.
+  The query looking for a matching data object has to do a join between `r_coll_main` and `r_data_main`,
+  so it uses `c` to refer to the object's parent directory and `d` for the object itself. For example,
+  this call will include the username and zone of the object's owner in the result set:
+
+    (object-lookup-cte path
+                       :collection-fields [[:coll_id :object_id]
+                                           [:coll_owner_name :owner_name]
+                                           [:coll_owner_zone :owner_zone]]
+                       :data-object-fields [[:d.data_id :object_id]
+                                            [:d.data_owner_name :owner_name]
+                                            [:d.data_owner_zone :owner_zone]])
+
+  In most cases, the column names are unique and the table aliases can be omitted completely:
+
+    (object-lookup-cte path
+                       :collection-fields [[:coll_id :object_id]
+                                           [:coll_owner_name :owner_name]
+                                           [:coll_owner_zone :owner_zone]]
+                       :data-object-fields [[:data_id :object_id]
+                                            [:data_owner_name :owner_name]
+                                            [:data_owner_zone :owner_zone]])
+
+  Please see `mk-perms-for-item` to see how this function should be used within the context of a call
+  to `sql/format`."
+  [path & {:keys [collection-fields data-object-fields]
+           :or   {collection-fields [[:coll_id :object_id]]
+                  data-object-fields [[:d.data_id :object_id]]}}]
+  (let [[dirname basename] ((juxt #(.getParent %) #(.getName %)) (file path))]
+    {:union [(-> (apply h/select collection-fields)
+                 (h/from :r_coll_main)
+                 (h/where [:= :coll_name path]))
+             (-> (apply h/select data-object-fields)
+                 (h/from [:r_data_main :d])
+                 (h/join [:r_coll_main :c] [:using :coll_id])
+                 (h/where [:= :c.coll_name dirname]
+                          [:= :d.data_name basename]))]}))
+
+(defn mk-perms-for-item
+  [path]
+  (sql/format
+   (-> {:with [[:object-lookup (object-lookup-cte path)]]}
+       (h/select :p.object_id [:u.user_name :user] :p.access_type_id)
+       (h/from [:r_objt_access :p])
+       (h/join [:r_user_main :u] [:using :user_id]
+               [:object-lookup :o] [:using :object_id]))))
 
 (defn- mk-count-colls-in-coll
   [parent-path group-ids-query & {:keys [cond] :or {cond "TRUE"}}]
@@ -517,7 +578,8 @@
       data_size      - '0'
       create_ts      - the iRODS timestamp string for when the folder was created
       modify_ts      - the iRODS timestamp string for when the folder was last modified
-      access_type_id - the ICAT DB Id indicating the user's level of access to the folder"
+      access_type_id - the ICAT DB Id indicating the user's level of access to the folder
+      data_checksum  - nil for collections, the MD5 checksum of the file for data objects"
   [& {:keys [user zone parent-path sort-column sort-direction limit offset groups-table-query]}]
   [[(str "WITH groups AS (" (or groups-table-query (mk-groups user zone)) ")
        " (mk-folders-in-folder parent-path "SELECT group_user_id FROM groups" true) "
@@ -556,7 +618,8 @@
       data_size      - the size in bytes of the file or 0 for a folder
       create_ts      - the iRODS timestamp string for when the file or folder was created
       modify_ts      - the iRODS timestamp string for when the file or folder was last modified
-      access_type_id - the ICAT DB Id indicating the user's level of access to the file or folder"
+      access_type_id - the ICAT DB Id indicating the user's level of access to the file or folder
+      data_checksum  - nil for collections, the MD5 checksum of the file for data objects"
   [& {:keys [user zone parent-path info-type-cond sort-column sort-direction limit offset groups-table-query]}]
   (let [group-query   "SELECT group_user_id FROM groups"
         folders-query (mk-folders-in-folder parent-path group-query false)
@@ -839,7 +902,8 @@
            p.data_size,
            p.create_ts,
            p.modify_ts,
-           MAX(p.access_type_id) AS access_type_id
+           MAX(p.access_type_id) AS access_type_id,
+           p.data_checksum
       FROM (SELECT 'collection'                           AS type,
                    u.uuid                                 AS uuid,
                    c.coll_name                            AS full_path,
@@ -848,7 +912,8 @@
                    0                                      AS data_size,
                    c.create_ts                            AS create_ts,
                    c.modify_ts                            AS modify_ts,
-                   a.access_type_id                       AS access_type_id
+                   a.access_type_id                       AS access_type_id,
+                   NULL                                   AS data_checksum
               FROM uuids u
                 JOIN r_coll_main c ON u.object_id = c.coll_id
                 JOIN r_objt_access AS a ON c.coll_id = a.object_id
@@ -862,7 +927,8 @@
                    d1.data_size                         AS data_size,
                    d1.create_ts                         AS create_ts,
                    d1.modify_ts                         AS modify_ts,
-                   a.access_type_id                     AS access_type_id
+                   a.access_type_id                     AS access_type_id,
+                   d1.data_checksum                     AS data_checksum
               FROM uuids u
                 JOIN r_data_main AS d1 ON u.object_id = d1.data_id
                 JOIN r_coll_main c ON d1.coll_id = c.coll_id
@@ -874,7 +940,7 @@
                 AND a.user_id IN (SELECT group_user_id FROM groups)
                 AND (%s)) AS p
       GROUP BY p.type, p.uuid, p.full_path, p.base_name, p.info_type, p.data_size, p.create_ts,
-               p.modify_ts
+               p.modify_ts, p.data_checksum
       ORDER BY p.type ASC, %s %s
       LIMIT ?
       OFFSET ?"})
