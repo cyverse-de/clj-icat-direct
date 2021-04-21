@@ -297,22 +297,63 @@
   [uuid]
   (mk-paths-for-uuids [uuid]))
 
+(defn- object-lookup-cte
+  "Creates a Common Table Expression (CTE) that can be used to find the collection or data object with
+  a given path. The fields returned by the CTE are parameterized so that this function can be used in
+  multiple contexts. By default, only the object ID (that is, the collection ID if the path happens
+  to correspond to a collection or the data object ID if the path happens to correspond to a data
+  object) is returned.
+
+  In order to use custom fields, it's necessary to know a little bit about how the CTE is constructed.
+  The CTE is a union of two queries. The first query scans `r_coll_main` for collections with the given
+  path. The second query scans `r_data_main` for data objects with the basename of the given path in
+  the `data_name` column that happen to be in a collection whose name matches the dirname of the path.
+  The query looking for a matching collection does not do any joins, so it doesn't use any table aliases.
+  The query looking for a matching data object has to do a join between `r_coll_main` and `r_data_main`,
+  so it uses `c` to refer to the object's parent directory and `d` for the object itself. For example,
+  this call will include the username and zone of the object's owner in the result set:
+
+    (object-lookup-cte path
+                       :collection-fields [[:coll_id :object_id]
+                                           [:coll_owner_name :owner_name]
+                                           [:coll_owner_zone :owner_zone]]
+                       :data-object-fields [[:d.data_id :object_id]
+                                            [:d.data_owner_name :owner_name]
+                                            [:d.data_owner_zone :owner_zone]])
+
+  In most cases, the column names are unique and the table aliases can be omitted completely:
+
+    (object-lookup-cte path
+                       :collection-fields [[:coll_id :object_id]
+                                           [:coll_owner_name :owner_name]
+                                           [:coll_owner_zone :owner_zone]]
+                       :data-object-fields [[:data_id :object_id]
+                                            [:data_owner_name :owner_name]
+                                            [:data_owner_zone :owner_zone]])
+
+  Please see `mk-perms-for-item` to see how this function should be used within the context of a call
+  to `sql/format`."
+  [path & {:keys [collection-fields data-object-fields]
+           :or   {collection-fields [[:coll_id :object_id]]
+                  data-object-fields [[:d.data_id :object_id]]}}]
+  (let [[dirname basename] ((juxt #(.getParent %) #(.getName %)) (file path))]
+    {:union [(-> (apply h/select collection-fields)
+                 (h/from :r_coll_main)
+                 (h/where [:= :coll_name path]))
+             (-> (apply h/select data-object-fields)
+                 (h/from [:r_data_main :d])
+                 (h/join [:r_coll_main :c] [:using :coll_id])
+                 (h/where [:= :c.coll_name dirname]
+                          [:= :d.data_name basename]))]}))
+
 (defn mk-perms-for-item
   [path]
-  (let [[dirname basename] ((juxt #(.getParent %) #(.getName %)) (file path))]
-    (sql/format
-     (-> {:with [[:object-lookup {:union [(-> (h/select [:coll_id :object_id])
-                                              (h/from :r_coll_main)
-                                              (h/where [:= :coll_name path]))
-                                          (-> (h/select [:d.data_id :object_id])
-                                              (h/from [:r_data_main :d])
-                                              (h/join [:r_coll_main :c] [:using :coll_id])
-                                              (h/where [:= :c.coll_name dirname]
-                                                       [:= :d.data_name basename]))]}]]}
-         (h/select :p.object_id [:u.user_name :user] :p.access_type_id)
-         (h/from [:r_objt_access :p])
-         (h/join [:r_user_main :u] [:using :user_id]
-                 [:object-lookup :o] [:using :object_id])))))
+  (sql/format
+   (-> {:with [[:object-lookup (object-lookup-cte path)]]}
+       (h/select :p.object_id [:u.user_name :user] :p.access_type_id)
+       (h/from [:r_objt_access :p])
+       (h/join [:r_user_main :u] [:using :user_id]
+               [:object-lookup :o] [:using :object_id]))))
 
 (defn- mk-count-colls-in-coll
   [parent-path group-ids-query & {:keys [cond] :or {cond "TRUE"}}]
