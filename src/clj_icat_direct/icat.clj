@@ -2,6 +2,7 @@
   (:use [clojure.java.io :only [file]])
   (:require [korma.db :as db]
             [korma.core :as k]
+            [otel.otel :as otel]
             [clojure.string :as string]
             [clj-icat-direct.queries :as q])
   (:import [clojure.lang ISeq Keyword]))
@@ -41,8 +42,9 @@
   [& body]
   `(if (map? icat)
     (db/with-db icat
-      (db/transaction
-        (do ~@body)))
+      (otel/with-span [s# ["with-icat-transaction" {:kind :internal}]]
+        (db/transaction
+          (do ~@body))))
     (do ~@body)))
 
 (defn- run-stuff

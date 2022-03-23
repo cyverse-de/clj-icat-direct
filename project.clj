@@ -12,5 +12,6 @@
   :dependencies [[org.clojure/clojure "1.10.3"]
                  [honeysql "1.0.461"]
                  [korma "0.4.3"]
-                 [org.postgresql/postgresql "42.2.19"]]
+                 [org.postgresql/postgresql "42.2.19"]
+                 [org.cyverse/otel "0.2.5"]]
   :eastwood {:exclude-linters [:def-in-def :unlimited-use]})
