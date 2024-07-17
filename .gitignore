@@ -8,6 +8,8 @@
 /.eastwood
 /.lein-failures
 /checkouts
+.clj-kondo
+.lsp
 .lein-deps-sum
 .lein-plugins
 /.classpath
