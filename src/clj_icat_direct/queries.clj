@@ -240,7 +240,7 @@
 
 
 (defn- mk-folders-in-folder
-  [parent-path group-ids-query include-count?]
+  [parent-path group-ids-query include-count? avus-cte]
   (str "SELECT 'collection'                           AS type,
                ca.meta_attr_value                     AS uuid,
                c.coll_name                            AS full_path,
@@ -254,7 +254,7 @@
        (if include-count? ",
                COUNT(*) OVER () AS total_count" "")
          " FROM r_coll_main AS c
-            JOIN coll_avus AS ca ON ca.object_id = c.coll_id
+            JOIN " avus-cte " AS ca ON ca.object_id = c.coll_id
             JOIN r_objt_access AS a ON c.coll_id = a.object_id
           WHERE c.parent_coll_name = '" parent-path "'
             AND c.coll_type != 'linkPoint'
@@ -591,7 +591,7 @@
    [(mk-temp-table "coll_avus" (mk-obj-avus "SELECT coll_id FROM colls"))]
    [(analyze "coll_avus")]
    [(str "WITH groups AS (" (or groups-table-query (mk-groups user zone)) ")
-       " (mk-folders-in-folder parent-path "SELECT group_user_id FROM groups" true) "
+       " (mk-folders-in-folder parent-path "SELECT group_user_id FROM groups" true "coll_avus") "
         ORDER BY " sort-column " " sort-direction "
         LIMIT ?
         OFFSET ?") limit offset]])
@@ -630,7 +630,7 @@
       data_checksum  - nil for collections, the MD5 checksum of the file for data objects"
   [& {:keys [user zone parent-path info-type-cond sort-column sort-direction limit offset groups-table-query]}]
   (let [group-query   "SELECT group_user_id FROM groups"
-        folders-query (mk-folders-in-folder parent-path group-query false)
+        folders-query (mk-folders-in-folder parent-path group-query false "coll_avus")
         files-query   (mk-files-in-folder parent-path group-query info-type-cond "objs"
                                           "file_avus" false)]
     [[(mk-temp-table "objs" (mk-unique-objs-in-coll parent-path))]
