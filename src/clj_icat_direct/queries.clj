@@ -192,8 +192,9 @@
 
 (defn mk-combined-avus
   [objs-table parent-path]
-  (mk-obj-avus (str "SELECT data_id FROM objs UNION SELECT coll_id FROM r_coll_main WHERE parent_coll_name = '"
-                    parent-path "'")))
+  (mk-obj-avus (str "SELECT data_id FROM " objs-table
+                    " UNION "
+                    "SELECT coll_id FROM r_coll_main WHERE parent_coll_name = '" parent-path "'")))
 
 (defn- mk-file-types
   [avus-cte]
