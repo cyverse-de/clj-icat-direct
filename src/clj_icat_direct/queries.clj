@@ -180,18 +180,20 @@
                                       WHERE d2.data_id = d1.data_id)"))
 
 
-(defn mk-colls-in-coll
-  [parent-path]
-  (str "SELECT *
-          FROM r_coll_main AS c1
-          WHERE c1.parent_coll_name = '" parent-path "'"))
-
 (defn- mk-obj-avus
   [obj-ids-query]
   (str "SELECT object_id, meta_attr_value, meta_attr_name
           FROM r_objt_metamap AS o JOIN r_meta_main AS m ON o.meta_id = m.meta_id
           WHERE o.object_id = ANY(ARRAY(" obj-ids-query "))"))
 
+(defn- mk-coll-avus
+  [parent-path]
+  (mk-obj-avus (str "SELECT coll_id FROM r_coll_main WHERE parent_coll_name = '" parent-path "'")))
+
+(defn mk-combined-avus
+  [objs-table parent-path]
+  (mk-obj-avus (str "SELECT data_id FROM objs UNION SELECT coll_id FROM r_coll_main WHERE parent_coll_name = '"
+                    parent-path "'")))
 
 (defn- mk-file-types
   [avus-cte]
@@ -359,6 +361,7 @@
        (h/from [:r_objt_access :p])
        (h/join [:r_user_main :u] [:using :user_id]
                [:object-lookup :o] [:using :object_id]))))
+
 
 (defn- mk-count-colls-in-coll
   [parent-path group-ids-query & {:keys [cond] :or {cond "TRUE"}}]
@@ -586,9 +589,7 @@
       access_type_id - the ICAT DB Id indicating the user's level of access to the folder
       data_checksum  - nil for collections, the MD5 checksum of the file for data objects"
   [& {:keys [user zone parent-path sort-column sort-direction limit offset groups-table-query]}]
-  [[(mk-temp-table "colls" (mk-colls-in-coll parent-path))]
-   [(analyze "colls")]
-   [(mk-temp-table "coll_avus" (mk-obj-avus "SELECT coll_id FROM colls"))]
+  [[(mk-temp-table "coll_avus" (mk-coll-avus parent-path))]
    [(analyze "coll_avus")]
    [(str "WITH groups AS (" (or groups-table-query (mk-groups user zone)) ")
        " (mk-folders-in-folder parent-path "SELECT group_user_id FROM groups" true "coll_avus") "
@@ -630,17 +631,13 @@
       data_checksum  - nil for collections, the MD5 checksum of the file for data objects"
   [& {:keys [user zone parent-path info-type-cond sort-column sort-direction limit offset groups-table-query]}]
   (let [group-query   "SELECT group_user_id FROM groups"
-        folders-query (mk-folders-in-folder parent-path group-query false "coll_avus")
+        folders-query (mk-folders-in-folder parent-path group-query false "avus")
         files-query   (mk-files-in-folder parent-path group-query info-type-cond "objs"
-                                          "file_avus" false)]
+                                          "avus" false)]
     [[(mk-temp-table "objs" (mk-unique-objs-in-coll parent-path))]
      [(analyze "objs")]
-     [(mk-temp-table "file_avus" (mk-obj-avus "SELECT data_id FROM objs"))]
-     [(analyze "file_avus")]
-     [(mk-temp-table "colls" (mk-colls-in-coll parent-path))]
-     [(analyze "colls")]
-     [(mk-temp-table "coll_avus" (mk-obj-avus "SELECT coll_id FROM colls"))]
-     [(analyze "coll_avus")]
+     [(mk-temp-table "avus" (mk-combined-avus "objs" parent-path))]
+     [(analyze "avus")]
      [(str "WITH groups AS (" (or groups-table-query (mk-groups user zone)) ") "
            "SELECT *, COUNT(*) OVER () AS total_count
             FROM (" folders-query " UNION " files-query ") AS t
