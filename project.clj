@@ -2,16 +2,16 @@
   :description "A Clojure library for accessing the iRODS ICAT database directly."
   :url "https://github.com/cyverse-de/clj-icat-direct"
   :license {:name "BSD Standard License"
-            :url "http://www.iplantcollaborative.org/sites/default/files/iPLANT-LICENSE.txt"}
+            :url "https://cyverse.org/license"}
   :deploy-repositories [["releases" :clojars]
                         ["snapshots" :clojars]]
-  :plugins [[jonase/eastwood "0.3.11"]
-            [test2junit "1.2.2"]]
-  :profiles {:repl {:dependencies [[cheshire "5.10.0"]]
+  :plugins [[jonase/eastwood "1.4.3"]
+            [lein-ancient "0.7.0"]
+            [test2junit "1.4.4"]]
+  :profiles {:repl {:dependencies [[cheshire "5.13.0"]]
                     :source-paths ["repl"]}}
-  :dependencies [[org.clojure/clojure "1.10.3"]
-                 [honeysql "1.0.461"]
+  :dependencies [[org.clojure/clojure "1.11.3"]
+                 [com.github.seancorfield/honeysql "2.6.1147"]
                  [korma "0.4.3"]
-                 [org.postgresql/postgresql "42.2.19"]
-                 [org.cyverse/otel "0.2.5"]]
+                 [org.postgresql/postgresql "42.7.3"]]
   :eastwood {:exclude-linters [:def-in-def :unlimited-use]})

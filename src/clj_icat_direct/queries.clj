@@ -2,9 +2,10 @@
   (:require [clj-icat-direct.util :refer [sql-array]]
             [clojure.java.io :refer [file]]
             [clojure.string :as string]
-            [honeysql.core :as sql]
-            [honeysql.helpers :as h])
-  (:import  [clojure.lang IPersistentMap ISeq]))
+            [honey.sql :as sql]
+            [honey.sql.helpers :as h])
+  (:import  [clojure.lang IPersistentMap ISeq]
+            [java.io File]))
 
 
 (defn- bad-chars->sql-char-class
@@ -295,8 +296,8 @@
                     (h/from :r_coll_main)
                     (h/join :objid [:= :r_coll_main.coll_id :objid.object_id]))
                 (-> (h/select [:meta_attr_value :uuid]
-                              [(sql/raw "coll_name || '/' || data_name") :path])
-                    (h/modifiers :distinct)
+                              [[:raw "coll_name || '/' || data_name"] :path])
+                    h/distinct
                     (h/from :r_data_main)
                     (h/join :r_coll_main [:using :coll_id]
                             :objid [:= :r_data_main.data_id :objid.object_id]))]}))
@@ -344,7 +345,9 @@
   [path & {:keys [collection-fields data-object-fields]
            :or   {collection-fields [[:coll_id :object_id]]
                   data-object-fields [[:d.data_id :object_id]]}}]
-  (let [[dirname basename] ((juxt #(.getParent %) #(.getName %)) (file path))]
+  (let [get-parent         (fn [^File f] (.getParent f))
+        get-name           (fn [^File f] (.getName f))
+        [dirname basename] ((juxt get-parent get-name) (file path))]
     {:union [(-> (apply h/select collection-fields)
                  (h/from :r_coll_main)
                  (h/where [:= :coll_name path]))

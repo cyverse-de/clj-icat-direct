@@ -1,5 +1,6 @@
 (ns clj-icat-direct.util
-  (:require [korma.db :as db]))
+  (:require [korma.db :as db])
+  (:import [java.sql Connection]))
 
 (defn sql-array
   "Returns a SQL ARRAY(...) object,
@@ -9,4 +10,4 @@
    array-items: the elements that populate the returned SQL ARRAY object."
   [array-type array-items]
   (db/transaction
-   (.createArrayOf (:connection db/*current-conn*) array-type (into-array array-items))))
+   (.createArrayOf ^Connection (:connection db/*current-conn*) array-type (into-array array-items))))
