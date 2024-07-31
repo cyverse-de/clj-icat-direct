@@ -4,7 +4,8 @@
             [clojure.string :as string]
             [honeysql.core :as sql]
             [honeysql.helpers :as h])
-  (:import  [clojure.lang IPersistentMap ISeq]))
+  (:import  [clojure.lang IPersistentMap ISeq]
+            [java.io File]))
 
 
 (defn- bad-chars->sql-char-class
@@ -344,7 +345,9 @@
   [path & {:keys [collection-fields data-object-fields]
            :or   {collection-fields [[:coll_id :object_id]]
                   data-object-fields [[:d.data_id :object_id]]}}]
-  (let [[dirname basename] ((juxt #(.getParent %) #(.getName %)) (file path))]
+  (let [get-parent         (fn [^File f] (.getParent f))
+        get-name           (fn [^File f] (.getName f))
+        [dirname basename] ((juxt get-parent get-name) (file path))]
     {:union [(-> (apply h/select collection-fields)
                  (h/from :r_coll_main)
                  (h/where [:= :coll_name path]))
