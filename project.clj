@@ -11,7 +11,7 @@
   :profiles {:repl {:dependencies [[cheshire "5.13.0"]]
                     :source-paths ["repl"]}}
   :dependencies [[org.clojure/clojure "1.11.3"]
-                 [honeysql "1.0.461"]
+                 [com.github.seancorfield/honeysql "2.6.1147"]
                  [korma "0.4.3"]
                  [org.postgresql/postgresql "42.7.3"]]
   :eastwood {:exclude-linters [:def-in-def :unlimited-use]})

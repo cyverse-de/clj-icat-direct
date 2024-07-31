@@ -2,8 +2,8 @@
   (:require [clj-icat-direct.util :refer [sql-array]]
             [clojure.java.io :refer [file]]
             [clojure.string :as string]
-            [honeysql.core :as sql]
-            [honeysql.helpers :as h])
+            [honey.sql :as sql]
+            [honey.sql.helpers :as h])
   (:import  [clojure.lang IPersistentMap ISeq]
             [java.io File]))
 
@@ -296,8 +296,8 @@
                     (h/from :r_coll_main)
                     (h/join :objid [:= :r_coll_main.coll_id :objid.object_id]))
                 (-> (h/select [:meta_attr_value :uuid]
-                              [(sql/raw "coll_name || '/' || data_name") :path])
-                    (h/modifiers :distinct)
+                              [[:raw "coll_name || '/' || data_name"] :path])
+                    h/distinct
                     (h/from :r_data_main)
                     (h/join :r_coll_main [:using :coll_id]
                             :objid [:= :r_data_main.data_id :objid.object_id]))]}))
