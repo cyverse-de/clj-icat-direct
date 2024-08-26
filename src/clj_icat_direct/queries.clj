@@ -295,9 +295,8 @@
                               [:coll_name :path])
                     (h/from :r_coll_main)
                     (h/join :objid [:= :r_coll_main.coll_id :objid.object_id]))
-                (-> (h/select [:meta_attr_value :uuid]
-                              [[:raw "coll_name || '/' || data_name"] :path])
-                    h/distinct
+                (-> (h/select-distinct [:meta_attr_value :uuid]
+                                       [[:raw "coll_name || '/' || data_name"] :path])
                     (h/from :r_data_main)
                     (h/join :r_coll_main [:using :coll_id]
                             :objid [:= :r_data_main.data_id :objid.object_id]))]}))
