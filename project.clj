@@ -10,6 +10,9 @@
             [test2junit "1.4.4"]]
   :profiles {:repl {:dependencies [[cheshire "6.2.0"]]
                     :source-paths ["repl"]}}
+  ;; Fail the build on a new dependency conflict rather than printing a
+  ;; warning nobody reads.
+  :pedantic? :abort
   :dependencies [[org.clojure/clojure "1.12.5"]
                  [com.github.seancorfield/honeysql "2.7.1437"]
                  [korma "0.4.3"]
